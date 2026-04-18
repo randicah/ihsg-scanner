@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IHSG Scanner — Volume Breakout</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="grain"></div>
+
+  <header>
+    <div class="header-left">
+      <span class="logo-mark">▲</span>
+      <div>
+        <h1>IHSG Scanner</h1>
+        <p class="subtitle">Volume Breakout · 3-Layer Filter</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="market-status" id="marketStatus">
+        <span class="dot"></span>
+        <span id="marketStatusText">Checking...</span>
+      </div>
+      <div class="last-update" id="lastUpdate">—</div>
+      <button class="btn-refresh" id="btnRefresh" onclick="runScanner()">
+        <span id="refreshIcon">↻</span> Scan
+      </button>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab active" onclick="switchTab('scanner')">Scanner</button>
+    <button class="tab" onclick="switchTab('journal')">Journal</button>
+    <button class="tab" onclick="switchTab('edge')">Edge Stats</button>
+    <button class="tab" onclick="switchTab('settings')">Settings</button>
+  </nav>
+
+  <!-- SCANNER TAB -->
+  <div class="tab-content active" id="tab-scanner">
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label>Min Volume Ratio</label>
+        <input type="number" id="minVolumeRatio" value="2.5" step="0.1" min="1" />
+      </div>
+      <div class="filter-group">
+        <label>Layer Filter</label>
+        <select id="layerFilter">
+          <option value="all">Semua Layer</option>
+          <option value="3">✅✅✅ 3 Layer</option>
+          <option value="2">✅✅ Min 2 Layer</option>
+          <option value="1">✅ Min 1 Layer</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>IHSG Hari Ini</label>
+        <select id="ihsgContext">
+          <option value="up">📈 Naik</option>
+          <option value="down">📉 Turun</option>
+          <option value="flat">➡️ Flat</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="scanner-grid" id="scannerGrid">
+      <div class="empty-state">
+        <p>Klik <strong>Scan</strong> untuk mulai screening</p>
+        <p class="hint">Data diambil dari Yahoo Finance (delay ~15 menit)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOURNAL TAB -->
+  <div class="tab-content" id="tab-journal">
+    <div class="journal-form">
+      <h2>Log Trade</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ticker</label>
+          <input type="text" id="jTicker" placeholder="BBCA" />
+        </div>
+        <div class="form-group">
+          <label>Tanggal</label>
+          <input type="date" id="jDate" />
+        </div>
+        <div class="form-group">
+          <label>Entry Price</label>
+          <input type="number" id="jEntry" placeholder="0" />
+        </div>
+        <div class="form-group">
+          <label>Exit Price</label>
+          <input type="number" id="jExit" placeholder="0" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Layer Terpenuhi</label>
+          <select id="jLayers">
+            <option value="L1+L2+L3">L1 + L2 + L3</option>
+            <option value="L1+L2">L1 + L2</option>
+            <option value="L1+L3">L1 + L3</option>
+            <option value="L1">L1 saja</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Volume Ratio saat masuk</label>
+          <input type="number" id="jVolRatio" placeholder="2.5" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label>IHSG saat itu</label>
+          <select id="jIhsg">
+            <option value="up">Naik</option>
+            <option value="down">Turun</option>
+            <option value="flat">Flat</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group full-width">
+        <label>Catatan</label>
+        <textarea id="jNotes" placeholder="Kenapa lo masuk? Apa yang terjadi? Pelajaran apa?"></textarea>
+      </div>
+      <button class="btn-primary" onclick="logTrade()">Simpan Trade</button>
+    </div>
+
+    <div class="journal-list" id="journalList">
+      <div class="empty-state">Belum ada trade yang dicatat.</div>
+    </div>
+  </div>
+
+  <!-- EDGE STATS TAB -->
+  <div class="tab-content" id="tab-edge">
+    <div class="edge-grid" id="edgeGrid">
+      <div class="empty-state">Log minimal 10 trade untuk melihat edge statistics.</div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-section">
+      <h2>Tambah Ticker Manual</h2>
+      <p class="hint">Saham di luar LQ45 yang ingin lo pantau</p>
+      <div class="ticker-input-row">
+        <input type="text" id="newTicker" placeholder="Contoh: GOTO" />
+        <button class="btn-primary" onclick="addCustomTicker()">Tambah</button>
+      </div>
+      <div class="custom-tickers" id="customTickers"></div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Google Sheets Integration</h2>
+      <p class="hint">Paste URL Google Apps Script lo di sini untuk sync journal ke cloud</p>
+      <input type="text" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." />
+      <button class="btn-primary" onclick="saveSheetsUrl()">Simpan URL</button>
+      <div id="sheetsStatus" class="sheets-status"></div>
+    </div>
+
+    <div class="settings-section">
+      <h2>LQ45 Default List</h2>
+      <p class="hint">Ini daftar saham yang di-scan secara default</p>
+      <div class="ticker-grid" id="defaultTickers"></div>
+    </div>
+
+    <div class="settings-section danger-zone">
+      <h2>Reset Data</h2>
+      <p class="hint">Hapus semua data journal dari browser ini</p>
+      <button class="btn-danger" onclick="resetData()">Reset Semua Data</button>
+    </div>
+  </div>
+
+  <script src="stocks.js"></script>
+  <script src="scanner.js"></script>
+  <script src="journal.js"></script>
+  <script src="sheets.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
