@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STOD Scanner — Same Time of Day</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #060608;
+      --bg2: #0e0e12;
+      --bg3: #16161c;
+      --bg4: #1e1e26;
+      --border: #222228;
+      --border2: #2e2e38;
+      --text: #dddde8;
+      --text2: #7777aa;
+      --text3: #44445a;
+      --accent: #00e5ff;
+      --accent2: #00b8cc;
+      --green: #00e676;
+      --green2: #004d2a;
+      --red: #ff1744;
+      --red2: #4d0012;
+      --yellow: #ffd600;
+      --yellow2: #4d4000;
+      --orange: #ff6d00;
+      --purple: #d500f9;
+      --font: 'IBM Plex Mono', monospace;
+      --font-display: 'Bebas Neue', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* SCANLINE EFFECT */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,229,255,0.015) 2px,
+        rgba(0,229,255,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 32px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(0,229,255,0.4);
+    }
+
+    .logo-sub {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .market-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      padding: 6px 14px;
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text3);
+    }
+    .pulse-dot.live {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: blink 1.5s infinite;
+    }
+    .pulse-dot.closed { background: var(--red); }
+    .pulse-dot.pre { background: var(--yellow); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .clock {
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 1px;
+    }
+
+    /* NAV */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .nav-links { display: flex; gap: 8px; }
+
+    .nav-link {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text3);
+      text-decoration: none;
+      padding: 6px 14px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      cursor: pointer;
+      background: none;
+      font-family: var(--font);
+    }
+
+    .nav-link:hover { color: var(--text2); border-color: var(--border2); }
+    .nav-link.active { color: var(--accent); border-color: var(--accent); background: rgba(0,229,255,0.05); }
+
+    /* CONTROLS */
+    .controls {
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      padding: 16px 24px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ctrl-label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .ctrl-group input,
+    .ctrl-group select {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      width: 130px;
+      transition: border-color 0.15s;
+    }
+
+    .ctrl-group input:focus,
+    .ctrl-group select:focus { border-color: var(--accent); }
+
+    .btn-scan {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 9px 28px;
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-scan::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.2);
+      transform: translateX(-100%);
+      transition: transform 0.3s;
+    }
+
+    .btn-scan:hover::before { transform: translateX(0); }
+    .btn-scan:hover { background: var(--accent2); }
+    .btn-scan.loading { opacity: 0.5; cursor: not-allowed; }
+
+    .scan-meta {
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .scan-meta .scan-time {
+      font-size: 10px;
+      color: var(--text3);
+    }
+
+    .scan-meta .scan-count {
+      font-size: 14px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* PROGRESS */
+    .progress-bar {
+      height: 2px;
+      background: var(--border);
+      display: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    /* MAIN CONTENT */
+    .main { padding: 20px 24px; }
+
+    /* TAB PANELS */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* RESULTS GRID */
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .results-title {
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .sort-btns { display: flex; gap: 6px; }
+
+    .sort-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      font-family: var(--font);
+      font-size: 9px;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+    }
+
+    .sort-btn:hover, .sort-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 10px;
+    }
+
+    /* STOCK CARD */
+    .scard {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 0;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+      animation: cardIn 0.4s ease forwards;
+      opacity: 0;
+      transform: translateY(10px);
+      cursor: default;
+    }
+
+    @keyframes cardIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .scard:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+    /* Sentiment border */
+    .scard.buying { border-top: 2px solid var(--green); }
+    .scard.accumulation { border-top: 2px solid var(--yellow); }
+    .scard.selling { border-top: 2px solid var(--red); }
+    .scard.distribution { border-top: 2px solid var(--purple); }
+
+    .scard-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 14px 16px 10px;
+    }
+
+    .scard-ticker {
+      font-family: var(--font-display);
+      font-size: 28px;
+      color: var(--text);
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+
+    .scard-name {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 3px;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .scard-sector {
+      font-size: 8px;
+      color: var(--text3);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .scard-price-block { text-align: right; }
+
+    .scard-price {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .scard-change {
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .scard-change.up { color: var(--green); }
+    .scard-change.down { color: var(--red); }
+    .scard-change.flat { color: var(--text2); }
+
+    /* SENTIMENT BADGE */
+    .sentiment-bar {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sentiment-badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sentiment-badge.buying { color: var(--green); }
+    .sentiment-badge.accumulation { color: var(--yellow); }
+    .sentiment-badge.selling { color: var(--red); }
+    .sentiment-badge.distribution { color: var(--purple); }
+
+    .signal-badge {
+      font-size: 9px;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      border: 1px solid;
+    }
+
+    .signal-badge.reversal { color: var(--accent); border-color: var(--accent); background: rgba(0,229,255,0.08); }
+    .signal-badge.continuation { color: var(--green); border-color: var(--green); background: rgba(0,230,118,0.08); }
+    .signal-badge.fading { color: var(--orange); border-color: var(--orange); background: rgba(255,109,0,0.08); }
+
+    /* METRICS ROW */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .metric-cell {
+      padding: 10px 12px;
+      border-right: 1px solid var(--border);
+    }
+
+    .metric-cell:last-child { border-right: none; }
+
+    .metric-cell .mlabel {
+      font-size: 8px;
+      color: var(--text3);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .metric-cell .mval {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .metric-cell .mval.accent { color: var(--accent); }
+    .metric-cell .mval.green { color: var(--green); }
+    .metric-cell .mval.red { color: var(--red); }
+    .metric-cell .mval.yellow { color: var(--yellow); }
+
+    /* RS BAR */
+    .rs-bar-container {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .rs-label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      width: 80px;
+    }
+
+    .rs-track {
+      flex: 1;
+      height: 4px;
+      background: var(--bg4);
+      position: relative;
+    }
+
+    .rs-fill {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      transition: width 0.6s ease;
+    }
+
+    .rs-fill.positive { background: var(--green); left: 50%; }
+    .rs-fill.negative { background: var(--red); right: 50%; }
+
+    .rs-center {
+      position: absolute;
+      left: 50%;
+      top: -3px;
+      width: 1px;
+      height: 10px;
+      background: var(--border2);
+    }
+
+    .rs-value {
+      font-size: 11px;
+      font-weight: 700;
+      width: 50px;
+      text-align: right;
+    }
+
+    .rs-value.positive { color: var(--green); }
+    .rs-value.negative { color: var(--red); }
+    .rs-value.neutral { color: var(--text2); }
+
+    /* STOD COMPARISON */
+    .stod-row {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stod-label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 1px;
+      width: 80px;
+      text-transform: uppercase;
+    }
+
+    .stod-bars {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stod-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stod-bar-label {
+      font-size: 8px;
+      color: var(--text3);
+      width: 45px;
+      text-align: right;
+    }
+
+    .stod-bar-track {
+      flex: 1;
+      height: 5px;
+      background: var(--bg4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stod-bar-fill {
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      transition: width 0.8s ease;
+    }
+
+    .stod-bar-fill.today { background: var(--accent); box-shadow: 0 0 6px rgba(0,229,255,0.4); }
+    .stod-bar-fill.yesterday { background: var(--text3); }
+
+    .stod-ratio {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      width: 45px;
+      text-align: right;
+    }
+
+    /* CARD FOOTER */
+    .scard-footer {
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .layer-dots {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .ldot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid var(--border2);
+    }
+
+    .ldot.pass { background: var(--green); border-color: var(--green); }
+    .ldot.fail { background: var(--bg4); }
+    .ldot.partial { background: var(--yellow); border-color: var(--yellow); }
+
+    .ldot-label { font-size: 9px; color: var(--text3); margin-left: 4px; }
+
+    .log-btn {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text3);
+      font-family: var(--font);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .log-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* EMPTY STATE */
+    .empty {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text3);
+      grid-column: 1 / -1;
+    }
+
+    .empty .e-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .empty .e-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      color: var(--text2);
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+
+    .empty .e-sub { font-size: 11px; line-height: 1.8; }
+
+    /* JOURNAL PANEL */
+    .journal-form {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .jform-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      letter-spacing: 2px;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .jform-row {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .jform-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex: 1;
+      min-width: 110px;
+    }
+
+    .jform-group.wide { flex: 2; }
+
+    .jform-group label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .jform-group input,
+    .jform-group select,
+    .jform-group textarea {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .jform-group textarea { min-height: 60px; resize: vertical; }
+    .jform-group input:focus,
+    .jform-group select:focus,
+    .jform-group textarea:focus { border-color: var(--accent); }
+
+    .jform-submit {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 9px 24px;
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s;
+    }
+
+    .jform-submit:hover { background: var(--accent2); }
+
+    /* JOURNAL LIST */
+    .journal-entries { display: flex; flex-direction: column; gap: 6px; }
+
+    .jentry {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 70px 1fr 100px 80px 70px 30px;
+      align-items: center;
+      gap: 12px;
+      animation: cardIn 0.3s ease forwards;
+    }
+
+    .jentry-ticker {
+      font-family: var(--font-display);
+      font-size: 20px;
+      color: var(--text);
+      letter-spacing: 1px;
+    }
+
+    .jentry-info { font-size: 10px; color: var(--text3); line-height: 1.6; }
+
+    .jentry-sentiment {
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .jentry-pnl {
+      font-size: 14px;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .jentry-pnl.profit { color: var(--green); }
+    .jentry-pnl.loss { color: var(--red); }
+
+    .jentry-layers { font-size: 10px; color: var(--text2); }
+
+    .jentry-del {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 3px 7px;
+      transition: all 0.15s;
+    }
+
+    .jentry-del:hover { border-color: var(--red); color: var(--red); }
+
+    /* EDGE PANEL */
+    .edge-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .ecard {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 20px;
+    }
+
+    .ecard-title {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .erow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .erow:last-child { border-bottom: none; }
+    .erow-label { font-size: 11px; color: var(--text2); }
+
+    .erow-val {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .erow-val.pos { color: var(--green); }
+    .erow-val.neg { color: var(--red); }
+    .erow-val.neu { color: var(--text); }
+
+    .ebar {
+      height: 3px;
+      background: var(--bg4);
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .ebar-fill {
+      height: 100%;
+      background: var(--green);
+      transition: width 0.8s ease;
+    }
+
+    /* SETTINGS PANEL */
+    .settings-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 24px;
+      margin-bottom: 14px;
+    }
+
+    .settings-block h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .settings-block .sdesc {
+      font-size: 10px;
+      color: var(--text3);
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .sticker-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .sticker-row input {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      width: 180px;
+      text-transform: uppercase;
+    }
+
+    .sticker-row input:focus { border-color: var(--accent); }
+
+    .sbtn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 7px 18px;
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    .sbtn:hover { background: var(--accent2); }
+
+    .sbtn-danger {
+      background: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 7px 18px;
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+
+    .sbtn-danger:hover { background: var(--red); color: #000; }
+
+    .custom-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .ctag {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      padding: 3px 10px;
+      font-size: 10px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ctag button {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .ctag button:hover { color: var(--red); }
+
+    .lq-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .lq-chip {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      font-size: 9px;
+      color: var(--text3);
+    }
+
+    .sheets-input {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 11px;
+      padding: 8px 10px;
+      outline: none;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .sheets-input:focus { border-color: var(--accent); }
+
+    .sheets-status {
+      font-size: 10px;
+      padding: 6px 10px;
+      margin-top: 6px;
+    }
+
+    .sheets-status.ok { color: var(--green); background: rgba(0,230,118,0.07); border: 1px solid rgba(0,230,118,0.2); }
+    .sheets-status.err { color: var(--red); background: rgba(255,23,68,0.07); border: 1px solid rgba(255,23,68,0.2); }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      padding: 10px 18px;
+      font-size: 11px;
+      z-index: 9999;
+      animation: toastIn 0.3s ease;
+      max-width: 320px;
+      letter-spacing: 0.5px;
+    }
+
+    .toast.success { border-left: 3px solid var(--green); color: var(--green); }
+    .toast.error { border-left: 3px solid var(--red); color: var(--red); }
+    .toast.info { border-left: 3px solid var(--accent); color: var(--accent); }
+
+    @keyframes toastIn {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); }
+
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .controls { padding: 12px 16px; }
+      .main { padding: 14px 16px; }
+      .results-grid { grid-template-columns: 1fr; }
+      .metrics-row { grid-template-columns: repeat(2, 1fr); }
+      .jentry { grid-template-columns: 60px 1fr 60px 25px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <div>
+        <div class="logo">STOD</div>
+        <div class="logo-sub">Same Time of Day Scanner · IHSG</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="clock" id="clockDisplay">00:00:00 WIB</div>
+      <div class="market-pill">
+        <div class="pulse-dot" id="mDot"></div>
+        <span id="mStatus">Checking...</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav-bar">
+    <div class="nav-links">
+      <button class="nav-link active" onclick="switchPanel('scanner')">Scanner</button>
+      <button class="nav-link" onclick="switchPanel('journal')">Journal</button>
+      <button class="nav-link" onclick="switchPanel('edge')">Edge Stats</button>
+      <button class="nav-link" onclick="switchPanel('settings')">Settings</button>
+    </div>
+    <a href="index.html" class="nav-link" style="color:var(--text3)">← Scanner Lama</a>
+  </nav>
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <div class="ctrl-label">Min STOD Ratio</div>
+      <input type="number" id="minRatio" value="2.0" step="0.1" min="1.0" />
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Sentimen Filter</div>
+      <select id="sentFilter">
+        <option value="all">Semua Sentimen</option>
+        <option value="buying">🟢 Buying Pressure</option>
+        <option value="accumulation">🟡 Accumulation</option>
+        <option value="selling">🔴 Selling Pressure</option>
+        <option value="distribution">⚫ Distribution</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">RS Filter</div>
+      <select id="rsFilter">
+        <option value="all">Semua RS</option>
+        <option value="outperform">💪 Outperform saja</option>
+        <option value="positive">RS Positif</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">IHSG % hari ini</div>
+      <input type="number" id="ihsgPct" value="0" step="0.01" placeholder="0.00" />
+    </div>
+    <button class="btn-scan" id="btnScan" onclick="runSTOD()">
+      ▶ SCAN
+    </button>
+    <div class="scan-meta">
+      <div class="scan-count" id="scanCount">—</div>
+      <div class="scan-time" id="scanTime">Belum pernah scan</div>
+    </div>
+  </div>
+
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <div class="main">
+
+    <!-- SCANNER PANEL -->
+    <div class="panel active" id="panel-scanner">
+      <div class="results-header">
+        <div class="results-title" id="resultsTitle">Tekan SCAN untuk mulai</div>
+        <div class="sort-btns">
+          <button class="sort-btn active" onclick="sortResults('ratio')" id="sort-ratio">Vol Ratio</button>
+          <button class="sort-btn" onclick="sortResults('change')" id="sort-change">% Change</button>
+          <button class="sort-btn" onclick="sortResults('rs')" id="sort-rs">RS</button>
+        </div>
+      </div>
+      <div class="results-grid" id="resultsGrid">
+        <div class="empty">
+          <div class="e-icon">◈</div>
+          <div class="e-title">STOD SCANNER</div>
+          <div class="e-sub">
+            Membandingkan volume kumulatif hari ini<br>
+            vs volume kumulatif kemarin di jam yang sama.<br><br>
+            Set IHSG % hari ini, lalu klik <strong>SCAN</strong>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JOURNAL PANEL -->
+    <div class="panel" id="panel-journal">
+      <div class="journal-form">
+        <div class="jform-title">LOG TRADE</div>
+        <div class="jform-row">
+          <div class="jform-group">
+            <label>Ticker</label>
+            <input type="text" id="jTicker" placeholder="BBCA" />
+          </div>
+          <div class="jform-group">
+            <label>Tanggal</label>
+            <input type="date" id="jDate" />
+          </div>
+          <div class="jform-group">
+            <label>Entry</label>
+            <input type="number" id="jEntry" placeholder="0" />
+          </div>
+          <div class="jform-group">
+            <label>Exit</label>
+            <input type="number" id="jExit" placeholder="0" />
+          </div>
+        </div>
+        <div class="jform-row">
+          <div class="jform-group">
+            <label>Sentimen saat masuk</label>
+            <select id="jSentimen">
+              <option value="buying">🟢 Buying Pressure</option>
+              <option value="accumulation">🟡 Accumulation</option>
+              <option value="selling">🔴 Selling Pressure</option>
+              <option value="distribution">⚫ Distribution</option>
+            </select>
+          </div>
+          <div class="jform-group">
+            <label>STOD Ratio</label>
+            <input type="number" id="jRatio" placeholder="2.5" step="0.1" />
+          </div>
+          <div class="jform-group">
+            <label>RS vs IHSG</label>
+            <input type="number" id="jRS" placeholder="1.5" step="0.1" />
+          </div>
+          <div class="jform-group">
+            <label>Signal</label>
+            <select id="jSignal">
+              <option value="reversal">⚡ Reversal</option>
+              <option value="continuation">🔥 Continuation</option>
+              <option value="fading">⚠️ Fading</option>
+              <option value="none">— None</option>
+            </select>
+          </div>
+        </div>
+        <div class="jform-row">
+          <div class="jform-group wide">
+            <label>Catatan</label>
+            <textarea id="jNotes" placeholder="Kenapa masuk? Apa yang terjadi?"></textarea>
+          </div>
+        </div>
+        <button class="jform-submit" onclick="logTrade()">SIMPAN TRADE</button>
+      </div>
+      <div class="journal-entries" id="journalEntries">
+        <div class="empty" style="padding:40px 0">
+          <div class="e-sub">Belum ada trade yang dicatat.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDGE PANEL -->
+    <div class="panel" id="panel-edge">
+      <div class="edge-grid" id="edgeGrid">
+        <div class="empty" style="padding:60px 0;grid-column:1/-1">
+          <div class="e-sub">Log minimal 5 trade untuk melihat edge statistics.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="panel" id="panel-settings">
+      <div class="settings-block">
+        <h3>TAMBAH TICKER MANUAL</h3>
+        <div class="sdesc">Saham di luar LQ45 yang ingin lo pantau secara khusus.</div>
+        <div class="sticker-row">
+          <input type="text" id="newTicker" placeholder="Contoh: GOTO" />
+          <button class="sbtn" onclick="addTicker()">+ Tambah</button>
+        </div>
+        <div class="custom-tags" id="customTags"></div>
+      </div>
+
+      <div class="settings-block">
+        <h3>GOOGLE SHEETS SYNC</h3>
+        <div class="sdesc">Paste URL Google Apps Script untuk backup journal ke cloud. Lihat SHEETS_SETUP.md untuk panduan lengkap.</div>
+        <input type="text" class="sheets-input" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." />
+        <button class="sbtn" onclick="saveSheets()">Simpan URL</button>
+        <div class="sheets-status" id="sheetsStatus"></div>
+      </div>
+
+      <div class="settings-block">
+        <h3>LQ45 DEFAULT LIST</h3>
+        <div class="sdesc">45 saham paling liquid di IHSG yang di-scan secara default.</div>
+        <div class="lq-chips" id="lqChips"></div>
+      </div>
+
+      <div class="settings-block" style="border-color:rgba(255,23,68,0.2)">
+        <h3>RESET DATA</h3>
+        <div class="sdesc">Hapus semua data journal dari browser ini. Tidak bisa di-undo.</div>
+        <button class="sbtn-danger" onclick="resetAll()">Reset Semua Data</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+  // ============================================
+  // LQ45 LIST
+  // ============================================
+  const LQ45 = [
+    { ticker: "AALI", name: "Astra Agro Lestari", sector: "Agriculture" },
+    { ticker: "ADRO", name: "Adaro Energy", sector: "Mining" },
+    { ticker: "AKRA", name: "AKR Corporindo", sector: "Trade" },
+    { ticker: "AMRT", name: "Sumber Alfaria Trijaya", sector: "Trade" },
+    { ticker: "ANTM", name: "Aneka Tambang", sector: "Mining" },
+    { ticker: "ASII", name: "Astra International", sector: "Automotive" },
+    { ticker: "BBCA", name: "Bank Central Asia", sector: "Finance" },
+    { ticker: "BBNI", name: "Bank Negara Indonesia", sector: "Finance" },
+    { ticker: "BBRI", name: "Bank Rakyat Indonesia", sector: "Finance" },
+    { ticker: "BBTN", name: "Bank Tabungan Negara", sector: "Finance" },
+    { ticker: "BFIN", name: "BFI Finance Indonesia", sector: "Finance" },
+    { ticker: "BMRI", name: "Bank Mandiri", sector: "Finance" },
+    { ticker: "BRIS", name: "Bank Syariah Indonesia", sector: "Finance" },
+    { ticker: "BRPT", name: "Barito Pacific", sector: "Chemical" },
+    { ticker: "CPIN", name: "Charoen Pokphand Indonesia", sector: "Agriculture" },
+    { ticker: "EMTK", name: "Elang Mahkota Teknologi", sector: "Technology" },
+    { ticker: "ESSA", name: "PT Essa Industries", sector: "Chemical" },
+    { ticker: "EXCL", name: "XL Axiata", sector: "Telecom" },
+    { ticker: "GGRM", name: "Gudang Garam", sector: "Consumer" },
+    { ticker: "GOTO", name: "GoTo Gojek Tokopedia", sector: "Technology" },
+    { ticker: "HMSP", name: "HM Sampoerna", sector: "Consumer" },
+    { ticker: "HRUM", name: "Harum Energy", sector: "Mining" },
+    { ticker: "ICBP", name: "Indofood CBP Sukses Makmur", sector: "Consumer" },
+    { ticker: "INCO", name: "Vale Indonesia", sector: "Mining" },
+    { ticker: "INDF", name: "Indofood Sukses Makmur", sector: "Consumer" },
+    { ticker: "INKP", name: "Indah Kiat Pulp & Paper", sector: "Industry" },
+    { ticker: "INTP", name: "Indocement Tunggal Prakarsa", sector: "Industry" },
+    { ticker: "ITMG", name: "Indo Tambangraya Megah", sector: "Mining" },
+    { ticker: "JPFA", name: "Japfa Comfeed Indonesia", sector: "Agriculture" },
+    { ticker: "JSMR", name: "Jasa Marga", sector: "Infrastructure" },
+    { ticker: "KLBF", name: "Kalbe Farma", sector: "Health" },
+    { ticker: "MAPI", name: "Mitra Adiperkasa", sector: "Trade" },
+    { ticker: "MBMA", name: "Merdeka Battery Materials", sector: "Mining" },
+    { ticker: "MDKA", name: "Merdeka Copper Gold", sector: "Mining" },
+    { ticker: "MEDC", name: "Medco Energi Internasional", sector: "Energy" },
+    { ticker: "MIKA", name: "Mitra Keluarga Karyasehat", sector: "Health" },
+    { ticker: "MNCN", name: "Media Nusantara Citra", sector: "Media" },
+    { ticker: "PGEO", name: "Pertamina Geothermal Energy", sector: "Energy" },
+    { ticker: "PGAS", name: "Perusahaan Gas Negara", sector: "Energy" },
+    { ticker: "PTBA", name: "Bukit Asam", sector: "Mining" },
+    { ticker: "SMGR", name: "Semen Indonesia", sector: "Industry" },
+    { ticker: "TBIG", name: "Tower Bersama Infrastructure", sector: "Infrastructure" },
+    { ticker: "TLKM", name: "Telkom Indonesia", sector: "Telecom" },
+    { ticker: "UNTR", name: "United Tractors", sector: "Automotive" },
+    { ticker: "UNVR", name: "Unilever Indonesia", sector: "Consumer" },
+  ];
+
+  const PROXY = 'https://api.allorigins.win/raw?url=';
+  const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+
+  let scanData = [];
+  let currentSort = 'ratio';
+  let isScanning = false;
+
+  // ============================================
+  // UTILITY
+  // ============================================
+
+  function getAllTickers() {
+    const custom = getCustom().map(t => ({ ticker: t, name: 'Custom', sector: 'Custom' }));
+    return [...LQ45, ...custom];
+  }
+
+  function getCustom() {
+    try { return JSON.parse(localStorage.getItem('stod_custom') || '[]'); } catch { return []; }
+  }
+
+  function saveCustom(list) { localStorage.setItem('stod_custom', JSON.stringify(list)); }
+
+  function getJournal() {
+    try { return JSON.parse(localStorage.getItem('stod_journal') || '[]'); } catch { return []; }
+  }
+
+  function saveJournal(j) { localStorage.setItem('stod_journal', JSON.stringify(j)); }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function fmtPrice(p) {
+    if (!p) return '—';
+    return Math.round(p).toLocaleString('id-ID');
+  }
+
+  function fmtVol(v) {
+    if (!v) return '—';
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
+    return String(v);
+  }
+
+  function showToast(msg, type = 'info') {
+    document.querySelector('.toast')?.remove();
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => {
+      t.style.opacity = '0';
+      t.style.transition = 'opacity 0.3s';
+      setTimeout(() => t.remove(), 300);
+    }, 3500);
+  }
+
+  // ============================================
+  // MARKET STATUS + CLOCK
+  // ============================================
+
+  function updateClock() {
+    const now = new Date();
+    const wib = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const h = String(wib.getHours()).padStart(2, '0');
+    const m = String(wib.getMinutes()).padStart(2, '0');
+    const s = String(wib.getSeconds()).padStart(2, '0');
+    document.getElementById('clockDisplay').textContent = `${h}:${m}:${s} WIB`;
+
+    const total = wib.getHours() * 60 + wib.getMinutes();
+    const day = wib.getDay();
+    const dot = document.getElementById('mDot');
+    const status = document.getElementById('mStatus');
+    const isWeekday = day >= 1 && day <= 5;
+
+    if (!isWeekday) {
+      dot.className = 'pulse-dot closed';
+      status.textContent = 'Weekend';
+    } else if (total >= 8*60+55 && total < 9*60) {
+      dot.className = 'pulse-dot pre';
+      status.textContent = 'Pre-Open';
+    } else if (total >= 9*60 && total < 11*60+30) {
+      dot.className = 'pulse-dot live';
+      status.textContent = 'Sesi 1 LIVE';
+    } else if (total >= 11*60+30 && total < 13*60+30) {
+      dot.className = 'pulse-dot pre';
+      status.textContent = 'Jeda Siang';
+    } else if (total >= 13*60+30 && total < 14*60+49) {
+      dot.className = 'pulse-dot live';
+      status.textContent = 'Sesi 2 LIVE';
+    } else if (total >= 14*60+49 && total < 15*60) {
+      dot.className = 'pulse-dot pre';
+      status.textContent = 'Pre-Close';
+    } else {
+      dot.className = 'pulse-dot closed';
+      status.textContent = 'Market Tutup';
+    }
+  }
+
+  // ============================================
+  // FETCH STOD DATA
+  // ============================================
+
+  async function fetchSTOD(ticker) {
+    const sym = `${ticker}.JK`;
+    // Fetch 2 days of 5-minute data
+    const url = `${YF}${sym}?interval=5m&range=2d&includePrePost=false`;
+
+    try {
+      const res = await fetch(PROXY + encodeURIComponent(url));
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+
+      const result = data?.chart?.result?.[0];
+      if (!result) return null;
+
+      const meta = result.meta;
+      const timestamps = result.timestamp || [];
+      const volumes = result.indicators?.quote?.[0]?.volume || [];
+      const closes = result.indicators?.quote?.[0]?.close || [];
+
+      if (timestamps.length === 0) return null;
+
+      // Current price & change
+      const currentPrice = meta.regularMarketPrice;
+      const prevClose = meta.previousClose || meta.chartPreviousClose;
+      const pricePct = prevClose ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
+
+      // Split candles into today vs yesterday
+      // Get current WIB time
+      const nowWIB = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+      const todayStr = nowWIB.toISOString().split('T')[0];
+
+      // Market open = 09:00 WIB = UTC+7, so UTC 02:00
+      // Convert each timestamp to WIB date
+      const toWIBDate = (ts) => {
+        const d = new Date(ts * 1000);
+        return new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+      };
+
+      const toWIBDateStr = (ts) => {
+        const d = toWIBDate(ts);
+        return d.toISOString().split('T')[0];
+      };
+
+      // Current WIB time in minutes since midnight
+      const nowMinutes = nowWIB.getHours() * 60 + nowWIB.getMinutes();
+
+      // Market open = 09:00 = 540 minutes
+      const marketOpenMinutes = 9 * 60;
+
+      // Minutes elapsed since market open (current candle boundary)
+      // Exclude current incomplete candle: floor to previous complete 5-min boundary
+      const minutesElapsed = nowMinutes - marketOpenMinutes;
+      const completeCandles = Math.floor(minutesElapsed / 5);
+      // Cutoff: only count candles up to this many minutes after 09:00
+      const cutoffMinutes = marketOpenMinutes + (completeCandles * 5);
+
+      let todayVol = 0;
+      let yesterdayVol = 0;
+      let todayCandleCount = 0;
+      let yesterdayCandleCount = 0;
+
+      timestamps.forEach((ts, i) => {
+        const vol = volumes[i];
+        if (!vol || vol === null) return;
+
+        const wibDate = toWIBDate(ts);
+        const dateStr = toWIBDateStr(ts);
+        const candleMinutes = wibDate.getHours() * 60 + wibDate.getMinutes();
+
+        // Only count candles within market hours (09:00 onwards)
+        if (candleMinutes < marketOpenMinutes) return;
+
+        if (dateStr === todayStr) {
+          // Today: only count completed candles (before cutoff)
+          if (candleMinutes < cutoffMinutes) {
+            todayVol += vol;
+            todayCandleCount++;
+          }
+        } else {
+          // Yesterday: only count candles up to same cutoff time
+          if (candleMinutes < cutoffMinutes) {
+            yesterdayVol += vol;
+            yesterdayCandleCount++;
+          }
+        }
+      });
+
+      if (yesterdayVol === 0 || todayCandleCount === 0) return null;
+
+      const stodRatio = todayVol / yesterdayVol;
+
+      // Yesterday price change (approximate from meta or last close of yesterday)
+      // We use closes to get yesterday's last close for sentiment comparison
+      const yesterdayCloses = [];
+      timestamps.forEach((ts, i) => {
+        const dateStr = toWIBDateStr(ts);
+        if (dateStr !== todayStr && closes[i]) {
+          yesterdayCloses.push(closes[i]);
+        }
+      });
+
+      // Rough yesterday price movement
+      const yFirstClose = yesterdayCloses[0] || null;
+      const yLastClose = yesterdayCloses[yesterdayCloses.length - 1] || null;
+      const yesterdayPct = (yFirstClose && yLastClose)
+        ? ((yLastClose - yFirstClose) / yFirstClose) * 100
+        : 0;
+
+      return {
+        ticker,
+        currentPrice,
+        prevClose,
+        pricePct,
+        todayVol,
+        yesterdayVol,
+        stodRatio,
+        todayCandleCount,
+        yesterdayCandleCount,
+        yesterdayPct,
+        cutoffMinutes,
+        completeCandles,
+      };
+    } catch (err) {
+      console.warn(`STOD fetch failed for ${ticker}:`, err.message);
+      return null;
+    }
+  }
+
+  // ============================================
+  // SENTIMENT LABEL
+  // ============================================
+
+  function getSentiment(pricePct, todayVol, yesterdayVol) {
+    if (pricePct > 1) return 'buying';
+    if (pricePct >= -0.5) return 'accumulation';
+    if (pricePct < -3) return 'distribution';
+    return 'selling';
+  }
+
+  function getSentimentLabel(s) {
+    const map = {
+      buying: '🟢 BUYING PRESSURE',
+      accumulation: '🟡 ACCUMULATION',
+      selling: '🔴 SELLING PRESSURE',
+      distribution: '⚫ DISTRIBUTION',
+    };
+    return map[s] || s;
+  }
+
+  function getSignal(todaySentiment, yesterdayPct) {
+    const yesterdaySentiment = yesterdayPct > 0.5 ? 'buying'
+      : yesterdayPct < -0.5 ? 'selling'
+      : 'neutral';
+
+    if (yesterdaySentiment === 'selling' && todaySentiment === 'buying') return 'reversal';
+    if (yesterdaySentiment === 'buying' && todaySentiment === 'buying') return 'continuation';
+    if (yesterdaySentiment === 'buying' && (todaySentiment === 'selling' || todaySentiment === 'distribution')) return 'fading';
+    return null;
+  }
+
+  function getSignalLabel(s) {
+    const map = {
+      reversal: '⚡ REVERSAL SIGNAL',
+      continuation: '🔥 MOMENTUM CONTINUATION',
+      fading: '⚠️ MOMENTUM FADING',
+    };
+    return map[s] || null;
+  }
+
+  // ============================================
+  // RELATIVE STRENGTH
+  // ============================================
+
+  function getRS(stockPct, ihsgPct) {
+    if (ihsgPct === 0) return stockPct > 0 ? 99 : stockPct < 0 ? -99 : 0;
+    return stockPct / ihsgPct;
+  }
+
+  function getRSLabel(rs) {
+    if (rs > 1.5) return { label: '💪 OUTPERFORM', cls: 'green' };
+    if (rs > 0.5) return { label: 'INLINE', cls: 'neu' };
+    if (rs > 0) return { label: 'UNDERPERFORM', cls: 'yellow' };
+    return { label: '❌ DIVERGE', cls: 'red' };
+  }
+
+  // ============================================
+  // MAIN SCAN
+  // ============================================
+
+  async function runSTOD() {
+    if (isScanning) return;
+    isScanning = true;
+
+    const btn = document.getElementById('btnScan');
+    btn.textContent = '⟳ SCANNING...';
+    btn.classList.add('loading');
+
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    progressBar.style.display = 'block';
+    progressFill.style.width = '0%';
+
+    const minRatio = parseFloat(document.getElementById('minRatio').value) || 2.0;
+    const sentFilter = document.getElementById('sentFilter').value;
+    const rsFilter = document.getElementById('rsFilter').value;
+    const ihsgPct = parseFloat(document.getElementById('ihsgPct').value) || 0;
+
+    const tickers = getAllTickers();
+    scanData = [];
+
+    document.getElementById('resultsGrid').innerHTML = `
+      <div class="empty">
+        <div class="e-icon">◈</div>
+        <div class="e-title">SCANNING</div>
+        <div class="e-sub">Mengambil data ${tickers.length} saham dari Yahoo Finance...<br>Mohon tunggu ~${Math.ceil(tickers.length / 5 * 1.2)} detik</div>
+      </div>`;
+
+    const batchSize = 5;
+
+    for (let i = 0; i < tickers.length; i += batchSize) {
+      const batch = tickers.slice(i, i + batchSize);
+      const results = await Promise.allSettled(batch.map(s => fetchSTOD(s.ticker)));
+
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled' && r.value) {
+          const d = r.value;
+          const info = batch[idx];
+          const sentiment = getSentiment(d.pricePct, d.todayVol, d.yesterdayVol);
+          const signal = getSignal(sentiment, d.yesterdayPct);
+          const rs = getRS(d.pricePct, ihsgPct);
+
+          if (d.stodRatio >= minRatio) {
+            scanData.push({ ...d, ...info, sentiment, signal, rs });
+          }
+        }
+      });
+
+      const pct = Math.min(((i + batchSize) / tickers.length) * 100, 100);
+      progressFill.style.width = pct + '%';
+
+      if (i + batchSize < tickers.length) await sleep(700);
+    }
+
+    progressFill.style.width = '100%';
+    setTimeout(() => { progressBar.style.display = 'none'; }, 500);
+
+    // Apply filters
+    let filtered = [...scanData];
+    if (sentFilter !== 'all') filtered = filtered.filter(s => s.sentiment === sentFilter);
+    if (rsFilter === 'outperform') filtered = filtered.filter(s => s.rs > 1.5);
+    if (rsFilter === 'positive') filtered = filtered.filter(s => s.rs > 0);
+
+    sortAndRender(filtered);
+
+    document.getElementById('scanCount').textContent = `${filtered.length} saham`;
+    document.getElementById('scanTime').textContent = 'Scan: ' + new Date().toLocaleTimeString('id-ID');
+    document.getElementById('resultsTitle').textContent =
+      `${filtered.length} saham lolos filter dari ${tickers.length} yang di-scan`;
+
+    btn.textContent = '▶ SCAN';
+    btn.classList.remove('loading');
+    isScanning = false;
+
+    showToast(`Scan selesai — ${filtered.length} saham lolos`, 'success');
+  }
+
+  // ============================================
+  // SORT & RENDER
+  // ============================================
+
+  function sortResults(by) {
+    currentSort = by;
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`sort-${by}`)?.classList.add('active');
+
+    let filtered = [...scanData];
+    const sentFilter = document.getElementById('sentFilter').value;
+    const rsFilter = document.getElementById('rsFilter').value;
+    if (sentFilter !== 'all') filtered = filtered.filter(s => s.sentiment === sentFilter);
+    if (rsFilter === 'outperform') filtered = filtered.filter(s => s.rs > 1.5);
+    if (rsFilter === 'positive') filtered = filtered.filter(s => s.rs > 0);
+
+    sortAndRender(filtered);
+  }
+
+  function sortAndRender(data) {
+    let sorted = [...data];
+    if (currentSort === 'ratio') sorted.sort((a, b) => b.stodRatio - a.stodRatio);
+    else if (currentSort === 'change') sorted.sort((a, b) => b.pricePct - a.pricePct);
+    else if (currentSort === 'rs') sorted.sort((a, b) => b.rs - a.rs);
+
+    renderResults(sorted);
+  }
+
+  function renderResults(data) {
+    const grid = document.getElementById('resultsGrid');
+
+    if (data.length === 0) {
+      grid.innerHTML = `<div class="empty">
+        <div class="e-icon">◈</div>
+        <div class="e-title">TIDAK ADA HASIL</div>
+        <div class="e-sub">Tidak ada saham yang lolos filter.<br>Coba turunkan Min STOD Ratio atau ubah filter sentimen.</div>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = data.map((s, i) => renderCard(s, i)).join('');
+  }
+
+  function renderCard(s, i) {
+    const changeClass = s.pricePct > 0.5 ? 'up' : s.pricePct < -0.5 ? 'down' : 'flat';
+    const changeSign = s.pricePct > 0 ? '+' : '';
+
+    const sentLabel = getSentimentLabel(s.sentiment);
+    const signalLabel = s.signal ? getSignalLabel(s.signal) : null;
+    const rsInfo = getRSLabel(s.rs);
+
+    // RS bar: center = 0, max display = ±3
+    const rsBarPct = Math.min(Math.abs(s.rs - 1) / 2 * 100, 100);
+    const rsBarDir = s.rs >= 1 ? 'positive' : 'negative';
+
+    // STOD bars: normalize to max being 100%
+    const maxVol = Math.max(s.todayVol, s.yesterdayVol);
+    const todayBarPct = maxVol > 0 ? (s.todayVol / maxVol) * 100 : 0;
+    const yestBarPct = maxVol > 0 ? (s.yesterdayVol / maxVol) * 100 : 0;
+
+    // Format cutoff time
+    const ch = Math.floor(s.cutoffMinutes / 60);
+    const cm = String(s.cutoffMinutes % 60).padStart(2, '0');
+    const cutoffStr = `${ch}:${cm}`;
+
+    return `
+    <div class="scard ${s.sentiment}" style="animation-delay:${i * 0.04}s">
+      <div class="scard-top">
+        <div>
+          <div class="scard-ticker">${s.ticker}</div>
+          <div class="scard-name">${s.name}</div>
+          <div class="scard-sector">${s.sector || ''}</div>
+        </div>
+        <div class="scard-price-block">
+          <div class="scard-price">Rp ${fmtPrice(s.currentPrice)}</div>
+          <div class="scard-change ${changeClass}">${changeSign}${s.pricePct?.toFixed(2)}%</div>
+        </div>
+      </div>
+
+      <div class="sentiment-bar">
+        <div class="sentiment-badge ${s.sentiment}">${sentLabel}</div>
+        ${signalLabel ? `<div class="signal-badge ${s.signal}">${signalLabel}</div>` : ''}
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-cell">
+          <div class="mlabel">STOD Ratio</div>
+          <div class="mval accent">${s.stodRatio.toFixed(2)}x</div>
+        </div>
+        <div class="metric-cell">
+          <div class="mlabel">Vol Hari Ini</div>
+          <div class="mval">${fmtVol(s.todayVol)}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="mlabel">Vol Kemarin</div>
+          <div class="mval" style="color:var(--text3)">${fmtVol(s.yesterdayVol)}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="mlabel">Candle (${cutoffStr})</div>
+          <div class="mval">${s.todayCandleCount}×5m</div>
+        </div>
+      </div>
+
+      <div class="stod-row">
+        <div class="stod-label">Vol Compare</div>
+        <div class="stod-bars">
+          <div class="stod-bar-row">
+            <div class="stod-bar-label">Hari ini</div>
+            <div class="stod-bar-track">
+              <div class="stod-bar-fill today" style="width:${todayBarPct}%"></div>
+            </div>
+          </div>
+          <div class="stod-bar-row">
+            <div class="stod-bar-label">Kemarin</div>
+            <div class="stod-bar-track">
+              <div class="stod-bar-fill yesterday" style="width:${yestBarPct}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="stod-ratio">${s.stodRatio.toFixed(1)}x</div>
+      </div>
+
+      <div class="rs-bar-container">
+        <div class="rs-label">RS vs IHSG</div>
+        <div class="rs-track">
+          <div class="rs-center"></div>
+          <div class="rs-fill ${rsBarDir}" style="width:${rsBarPct}%"></div>
+        </div>
+        <div class="rs-value ${s.rs >= 1 ? 'positive' : s.rs >= 0 ? 'neutral' : 'negative'}">
+          ${rsInfo.label}
+        </div>
+      </div>
+
+      <div class="scard-footer">
+        <div style="font-size:9px;color:var(--text3)">
+          Kemarin: ${s.yesterdayPct >= 0 ? '+' : ''}${s.yesterdayPct.toFixed(2)}%
+        </div>
+        <button class="log-btn" onclick="prefillJournal('${s.ticker}', ${s.currentPrice}, '${s.sentiment}', ${s.stodRatio.toFixed(2)}, ${s.rs.toFixed(2)}, '${s.signal || 'none'}')">
+          + Log Trade
+        </button>
+      </div>
+    </div>`;
+  }
+
+  // ============================================
+  // JOURNAL
+  // ============================================
+
+  function prefillJournal(ticker, price, sentiment, ratio, rs, signal) {
+    switchPanel('journal');
+    document.getElementById('jTicker').value = ticker;
+    document.getElementById('jEntry').value = price;
+    document.getElementById('jDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('jSentimen').value = sentiment;
+    document.getElementById('jRatio').value = ratio;
+    document.getElementById('jRS').value = rs;
+    document.getElementById('jSignal').value = signal;
+    showToast(`${ticker} siap di-log`, 'info');
+  }
+
+  function logTrade() {
+    const ticker = document.getElementById('jTicker').value.trim().toUpperCase();
+    const date = document.getElementById('jDate').value;
+    const entry = parseFloat(document.getElementById('jEntry').value);
+    const exit = parseFloat(document.getElementById('jExit').value);
+    const sentiment = document.getElementById('jSentimen').value;
+    const ratio = parseFloat(document.getElementById('jRatio').value) || 0;
+    const rs = parseFloat(document.getElementById('jRS').value) || 0;
+    const signal = document.getElementById('jSignal').value;
+    const notes = document.getElementById('jNotes').value.trim();
+
+    if (!ticker || !date || !entry || !exit) {
+      showToast('Lengkapi Ticker, Tanggal, Entry dan Exit', 'error');
+      return;
+    }
+
+    const pnlPct = parseFloat(((exit - entry) / entry * 100).toFixed(2));
+    const isProfit = pnlPct > 0;
+
+    const trade = { id: Date.now(), ticker, date, entry, exit, pnlPct, isProfit, sentiment, ratio, rs, signal, notes, createdAt: new Date().toISOString() };
+    const journal = getJournal();
+    journal.unshift(trade);
+    saveJournal(journal);
+
+    syncSheets(trade);
+
+    document.getElementById('jTicker').value = '';
+    document.getElementById('jEntry').value = '';
+    document.getElementById('jExit').value = '';
+    document.getElementById('jRatio').value = '';
+    document.getElementById('jRS').value = '';
+    document.getElementById('jNotes').value = '';
+
+    renderJournal();
+    renderEdge();
+    showToast(`${ticker} — ${isProfit ? '✅ +' : '❌ '}${pnlPct}%`, isProfit ? 'success' : 'error');
+  }
+
+  function deleteTrade(id) {
+    if (!confirm('Hapus trade ini?')) return;
+    saveJournal(getJournal().filter(t => t.id !== id));
+    renderJournal();
+    renderEdge();
+    showToast('Trade dihapus', 'info');
+  }
+
+  function renderJournal() {
+    const container = document.getElementById('journalEntries');
+    const journal = getJournal();
+
+    if (journal.length === 0) {
+      container.innerHTML = '<div class="empty" style="padding:40px 0"><div class="e-sub">Belum ada trade yang dicatat.</div></div>';
+      return;
+    }
+
+    container.innerHTML = journal.map(t => `
+      <div class="jentry">
+        <div class="jentry-ticker">${t.ticker}</div>
+        <div class="jentry-info">
+          ${t.date}<br>
+          Rp ${Math.round(t.entry).toLocaleString('id-ID')} → Rp ${Math.round(t.exit).toLocaleString('id-ID')}
+        </div>
+        <div class="jentry-sentiment ${t.sentiment}" style="color:${t.sentiment === 'buying' ? 'var(--green)' : t.sentiment === 'accumulation' ? 'var(--yellow)' : t.sentiment === 'selling' ? 'var(--red)' : 'var(--purple)'}">
+          ${getSentimentLabel(t.sentiment).split(' ').slice(1).join(' ')}
+        </div>
+        <div class="jentry-layers" style="font-size:10px">
+          STOD: ${t.ratio}x<br>
+          RS: ${t.rs}
+        </div>
+        <div class="jentry-pnl ${t.isProfit ? 'profit' : 'loss'}">
+          ${t.isProfit ? '+' : ''}${t.pnlPct}%
+        </div>
+        <button class="jentry-del" onclick="deleteTrade(${t.id})">×</button>
+      </div>`).join('');
+  }
+
+  // ============================================
+  // EDGE STATS
+  // ============================================
+
+  function calcStats(trades) {
+    if (!trades.length) return { total: 0, winRate: 0, avgWin: 0, avgLoss: 0, expectancy: 0 };
+    const wins = trades.filter(t => t.isProfit);
+    const losses = trades.filter(t => !t.isProfit);
+    const winRate = parseFloat((wins.length / trades.length * 100).toFixed(1));
+    const avgWin = wins.length ? parseFloat((wins.reduce((a, t) => a + t.pnlPct, 0) / wins.length).toFixed(2)) : 0;
+    const avgLoss = losses.length ? parseFloat((losses.reduce((a, t) => a + Math.abs(t.pnlPct), 0) / losses.length).toFixed(2)) : 0;
+    const expectancy = parseFloat(((winRate / 100 * avgWin) - ((1 - winRate / 100) * avgLoss)).toFixed(2));
+    return { total: trades.length, wins: wins.length, losses: losses.length, winRate, avgWin, avgLoss, expectancy };
+  }
+
+  function renderEdge() {
+    const container = document.getElementById('edgeGrid');
+    const journal = getJournal();
+
+    if (journal.length < 5) {
+      container.innerHTML = '<div class="empty" style="padding:60px 0;grid-column:1/-1"><div class="e-sub">Log minimal 5 trade untuk melihat edge statistics.</div></div>';
+      return;
+    }
+
+    const overall = calcStats(journal);
+    const bySent = {};
+    journal.forEach(t => {
+      if (!bySent[t.sentiment]) bySent[t.sentiment] = [];
+      bySent[t.sentiment].push(t);
+    });
+
+    const bySignal = {};
+    journal.forEach(t => {
+      const key = t.signal || 'none';
+      if (!bySignal[key]) bySignal[key] = [];
+      bySignal[key].push(t);
+    });
+
+    const byRS = {
+      outperform: calcStats(journal.filter(t => t.rs > 1.5)),
+      inline: calcStats(journal.filter(t => t.rs > 0.5 && t.rs <= 1.5)),
+      under: calcStats(journal.filter(t => t.rs <= 0.5)),
+    };
+
+    let html = '';
+
+    // Overall
+    html += `<div class="ecard">
+      <div class="ecard-title">Overall Performance</div>
+      <div class="erow"><span class="erow-label">Win Rate</span><span class="erow-val ${overall.winRate >= 50 ? 'pos' : 'neg'}">${overall.winRate}%</span></div>
+      <div class="erow"><span class="erow-label">Avg Win</span><span class="erow-val pos">+${overall.avgWin}%</span></div>
+      <div class="erow"><span class="erow-label">Avg Loss</span><span class="erow-val neg">-${overall.avgLoss}%</span></div>
+      <div class="erow"><span class="erow-label">Expectancy</span><span class="erow-val ${overall.expectancy >= 0 ? 'pos' : 'neg'}">${overall.expectancy >= 0 ? '+' : ''}${overall.expectancy}%</span></div>
+      <div class="erow"><span class="erow-label">Sample</span><span class="erow-val neu">${overall.total} trade</span></div>
+      <div class="ebar"><div class="ebar-fill" style="width:${overall.winRate}%"></div></div>
+    </div>`;
+
+    // By sentiment
+    html += `<div class="ecard">
+      <div class="ecard-title">Win Rate per Sentimen</div>
+      ${Object.entries(bySent).map(([sent, trades]) => {
+        const s = calcStats(trades);
+        return `<div class="erow">
+          <span class="erow-label">${getSentimentLabel(sent).split(' ').slice(1).join(' ')} (${s.total}x)</span>
+          <span class="erow-val ${s.winRate >= 50 ? 'pos' : 'neg'}">${s.winRate}%</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+    // By signal
+    html += `<div class="ecard">
+      <div class="ecard-title">Win Rate per Signal</div>
+      ${Object.entries(bySignal).map(([sig, trades]) => {
+        const s = calcStats(trades);
+        const label = sig === 'reversal' ? '⚡ Reversal' : sig === 'continuation' ? '🔥 Continuation' : sig === 'fading' ? '⚠️ Fading' : '— No Signal';
+        return `<div class="erow">
+          <span class="erow-label">${label} (${s.total}x)</span>
+          <span class="erow-val ${s.winRate >= 50 ? 'pos' : 'neg'}">${s.winRate}%</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+    // By RS
+    html += `<div class="ecard">
+      <div class="ecard-title">Win Rate per Relative Strength</div>
+      <div class="erow"><span class="erow-label">💪 Outperform (${byRS.outperform.total}x)</span><span class="erow-val ${byRS.outperform.winRate >= 50 ? 'pos' : 'neg'}">${byRS.outperform.winRate}%</span></div>
+      <div class="erow"><span class="erow-label">Inline (${byRS.inline.total}x)</span><span class="erow-val ${byRS.inline.winRate >= 50 ? 'pos' : 'neg'}">${byRS.inline.winRate}%</span></div>
+      <div class="erow"><span class="erow-label">Underperform (${byRS.under.total}x)</span><span class="erow-val ${byRS.under.winRate >= 50 ? 'pos' : 'neg'}">${byRS.under.winRate}%</span></div>
+    </div>`;
+
+    // Verdict
+    const exp = overall.expectancy;
+    html += `<div class="ecard">
+      <div class="ecard-title">Kesimpulan Edge</div>
+      <div class="erow"><span class="erow-label">Status</span>
+        <span class="erow-val ${exp >= 0.5 ? 'pos' : exp >= 0 ? 'neu' : 'neg'}">
+          ${exp >= 0.5 ? '✅ Edge Confirmed' : exp >= 0 ? '⚠️ Marginal' : '❌ No Edge'}
+        </span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.8">
+        ${exp >= 0.5
+          ? 'Edge terdeteksi secara statistik. Lanjutkan dengan disiplin dan tambah sample.'
+          : exp >= 0
+          ? 'Edge masih marginal. Butuh lebih banyak data atau evaluasi parameter.'
+          : 'Belum ada edge. Evaluasi kombinasi sentimen dan signal yang lo ambil.'}
+      </div>
+    </div>`;
+
+    container.innerHTML = html;
+  }
+
+  // ============================================
+  // SETTINGS
+  // ============================================
+
+  function addTicker() {
+    const input = document.getElementById('newTicker');
+    const ticker = input.value.trim().toUpperCase();
+    if (!ticker) return;
+    const existing = getAllTickers().map(t => t.ticker);
+    if (existing.includes(ticker)) { showToast(`${ticker} sudah ada`, 'info'); return; }
+    const custom = getCustom();
+    custom.push(ticker);
+    saveCustom(custom);
+    input.value = '';
+    renderCustomTags();
+    showToast(`${ticker} ditambahkan`, 'success');
+  }
+
+  function removeTicker(t) {
+    saveCustom(getCustom().filter(x => x !== t));
+    renderCustomTags();
+    showToast(`${t} dihapus`, 'info');
+  }
+
+  function renderCustomTags() {
+    const c = document.getElementById('customTags');
+    const custom = getCustom();
+    c.innerHTML = custom.length === 0
+      ? '<span style="font-size:10px;color:var(--text3)">Belum ada ticker custom</span>'
+      : custom.map(t => `<div class="ctag">${t}<button onclick="removeTicker('${t}')">×</button></div>`).join('');
+  }
+
+  function renderLQChips() {
+    document.getElementById('lqChips').innerHTML = LQ45.map(s =>
+      `<div class="lq-chip">${s.ticker}</div>`).join('');
+  }
+
+  function saveSheets() {
+    const url = document.getElementById('sheetsUrl').value.trim();
+    if (!url) { showToast('URL tidak boleh kosong', 'error'); return; }
+    localStorage.setItem('stod_sheets', url);
+    const el = document.getElementById('sheetsStatus');
+    el.className = 'sheets-status ok';
+    el.textContent = '✅ URL tersimpan. Sync aktif untuk trade berikutnya.';
+    showToast('URL Sheets disimpan', 'success');
+  }
+
+  async function syncSheets(trade) {
+    const url = localStorage.getItem('stod_sheets');
+    if (!url) return;
+    try {
+      await fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'addTrade', data: trade })
+      });
+    } catch (e) { console.warn('Sheets sync failed:', e); }
+  }
+
+  function resetAll() {
+    if (!confirm('Hapus semua data journal STOD? Tidak bisa di-undo.')) return;
+    localStorage.removeItem('stod_journal');
+    renderJournal();
+    renderEdge();
+    showToast('Data direset', 'info');
+  }
+
+  function loadSheetsUrl() {
+    const url = localStorage.getItem('stod_sheets');
+    if (url) {
+      document.getElementById('sheetsUrl').value = url;
+      const el = document.getElementById('sheetsStatus');
+      el.className = 'sheets-status ok';
+      el.textContent = '✅ URL tersimpan';
+    }
+  }
+
+  // ============================================
+  // PANEL NAVIGATION
+  // ============================================
+
+  function switchPanel(name) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+    document.getElementById(`panel-${name}`)?.classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(b => {
+      if (b.getAttribute('onclick') === `switchPanel('${name}')`) b.classList.add('active');
+    });
+  }
+
+  // ============================================
+  // INIT
+  // ============================================
+
+  document.addEventListener('DOMContentLoaded', () => {
+    updateClock();
+    setInterval(updateClock, 1000);
+    document.getElementById('jDate').value = new Date().toISOString().split('T')[0];
+    renderJournal();
+    renderEdge();
+    renderCustomTags();
+    renderLQChips();
+    loadSheetsUrl();
+  });
+  </script>
+</body>
+</html>
